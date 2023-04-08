@@ -1,56 +1,63 @@
 #!/usr/bin/python3
-"""Compress web static package
+"""Fabric script generating a .tgz archive from the
+   contents of the web_static folder
 """
-from fabric.api import *
 from datetime import datetime
-from os import path
+from fabric.api import *
+import os.path
 
 
-env.hosts = ['34.201.165.8', '100.25.201.194']
+env.hosts = ['54.166.139.118', '34.207.237.37']
 env.user = 'ubuntu'
-env.key_filename = '~/.ssh/id_rsa'
 
 
 def do_deploy(archive_path):
-        """Deploy web files to server
-        """
+    """ To compress or Distribute an archive to your web servers.
+       Arguments:
+        archive_path: Path to an already achrived file.
+    """
+    #  check if archive exist.
+    if os.path.isfile(archive_path):
         try:
-                if not (path.exists(archive_path)):
-                        return False
+            #  Upload the archive to remote /tmp/
+            put("{}".format(archive_path), "/tmp/")
+            release = '/data/web_static/releases/'
+            current = "/data/web_static/current"
+            trim_arch = archive_path.split('/')[1].split('.')[0]
+            #  Uncompress the archive to the release folder
+            run("mkdir -p {}{}/".format(release, trim_arch))
+            run("tar -xzf /tmp/{} -C {}{}/".format(archive_path.split('/')[1],
+                                                   release,
+                                                   trim_arch))
+            #  Delete the archive from the web server
+            run("rm /tmp/{}".format(archive_path.split('/')[1]))
+            # Move Uncompressed files to release version
+            run("mv {}{}/web_static/* {}{}".format(release, trim_arch,
+                                                   release, trim_arch))
+            run("rm -rf {}{}/web_static/".format(release, trim_arch))
+            #  Delete current the symbolic link.
+            run("rm -rf {}".format(current))
+            #  Create a new the symbolic link
+            run("ln -sf {}{} {}".format(release, trim_arch, current))
+            return True
+        except Exception as e:
+            return False
+    else:
+        return False
 
-                # upload archive
-                put(archive_path, '/tmp/')
 
-                # create target dir
-                timestamp = archive_path[-18:-4]
-                run('sudo mkdir -p /data/web_static/\
-releases/web_static_{}/'.format(timestamp))
-
-                # uncompress archive and delete .tgz
-                run('sudo tar -xzf /tmp/web_static_{}.tgz -C \
-/data/web_static/releases/web_static_{}/'
-                    .format(timestamp, timestamp))
-
-                # remove archive
-                run('sudo rm /tmp/web_static_{}.tgz'.format(timestamp))
-
-                # move contents into host web_static
-                run('sudo mv /data/web_static/releases/web_static_{}/web_static/* \
-/data/web_static/releases/web_static_{}/'.format(timestamp, timestamp))
-
-                # remove extraneous web_static dir
-                run('sudo rm -rf /data/web_static/releases/\
-web_static_{}/web_static'
-                    .format(timestamp))
-
-                # delete pre-existing sym link
-                run('sudo rm -rf /data/web_static/current')
-
-                # re-establish symbolic link
-                run('sudo ln -s /data/web_static/releases/\
-web_static_{}/ /data/web_static/current'.format(timestamp))
-        except:
-                return False
-
-        # return True on success
-        return True
+def do_pack():
+    """ Generating  a .tgz archive from the contents of
+       the web_static folder of your AirBnB Clone repo
+    """
+    local("mkdir -p versions")
+    created_at = datetime.now().strftime("%Y%m%d%H%M%S")
+    # From the archive path and command
+    arch_path = "versions/web_static_{}.tgz".format(created_at)
+    command = "tar -cvzf {} web_static".format(arch_path)
+    try:
+        # perform fab command
+        local(command)
+        return arch_path
+    except Exception as e:
+        return None
