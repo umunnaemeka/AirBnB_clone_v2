@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """ Script that runs an app with Flask framework """
-from flask import Flask
-
+from flask import Flask request
+from markupsafe import escape
 
 app = Flask(__name__)
 
